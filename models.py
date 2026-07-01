@@ -77,4 +77,16 @@ class PremiumRequest(Base):
     user_name: Mapped[str] = mapped_column(String(255), default="")
     plan: Mapped[str] = mapped_column(String(50), default="")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
-    
+
+
+class Admin(Base):
+    """Bazada saqlanadigan qo'shimcha adminlar (.env dagi SUPER_ADMIN_IDS dan tashqari).
+    Super-adminlar botdan /add_admin va /remove_admin buyruqlari orqali boshqaradi,
+    shuning uchun yangi admin qo'shish uchun kodni qayta deploy qilish shart emas."""
+    __tablename__ = "admins"
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    full_name: Mapped[str] = mapped_column(String(255), default="")
+    added_by: Mapped[int] = mapped_column(BigInteger, default=0)
+    added_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
