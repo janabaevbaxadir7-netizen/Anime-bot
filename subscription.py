@@ -19,3 +19,4 @@ async def check_subscription(bot: Bot, user_id: int) -> tuple[bool, list]:
             not_subscribed.append(ch)
 
     return len(not_subscribed) == 0, not_subscribed
+    
