@@ -15,4 +15,8 @@ class AdminStates(StatesGroup):
     waiting_channel_url        = State()
     waiting_broadcast_text     = State()
     waiting_rename             = State()
-    
+    waiting_description        = State()
+    waiting_cover              = State()
+    waiting_add_admin          = State()
+    waiting_remove_admin       = State()
+
