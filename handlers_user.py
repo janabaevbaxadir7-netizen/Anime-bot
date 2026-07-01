@@ -3,11 +3,13 @@ from aiogram import Router, F, Bot
 from aiogram.filters import CommandStart, Command
 from aiogram.types import Message, CallbackQuery
 from aiogram.fsm.context import FSMContext
+from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 import texts, config, db
 from states import UserStates
 import user_kb
 from subscription import check_subscription
+from filters import is_admin_async
 
 router = Router()
 
@@ -29,13 +31,34 @@ async def gate(bot, message, state):
     return True
 
 
+async def send_anime_card(message, anime, caption_extra=""):
+    """Anime kartochkasini yuboradi — agar muqova rasmi bo'lsa rasm bilan,
+    tavsif bo'lsa tavsif bilan birga ko'rsatadi."""
+    caption = (
+        f"🎬 <b>{anime.title}</b>\n"
+        f"📺 Jami: <b>{len(anime.episodes)} qism</b>  |  🔍 {anime.search_count}  |  👍 {anime.likes}\n"
+    )
+    if anime.description:
+        caption += f"\n📝 {anime.description}\n"
+    caption += caption_extra
+
+    if anime.cover_file_id:
+        await message.answer_photo(
+            photo=anime.cover_file_id,
+            caption=caption,
+            reply_markup=user_kb.episodes_grid_kb(anime)
+        )
+    else:
+        await message.answer(caption, reply_markup=user_kb.episodes_grid_kb(anime))
+
+
 @router.message(CommandStart())
 async def cmd_start(message: Message, state: FSMContext, bot: Bot):
     await state.clear()
     user, new = await db.get_or_create_user(message.from_user.id, message.from_user.full_name, message.from_user.username or "")
 
-    # Admin bo'lsa — admin paneliga
-    if message.from_user.id in config.ADMIN_IDS:
+    # Admin bo'lsa — admin paneliga (bosh admin yoki bazadagi admin)
+    if await is_admin_async(message.from_user.id):
         from handlers_admin import show_admin_panel
         await show_admin_panel(message, state)
         return
@@ -62,10 +85,7 @@ async def cmd_rand(message: Message, state: FSMContext, bot: Bot):
         await message.answer(texts.NO_TOP); return
     anime = random.choice(anime_list)
     await db.increment_search_count(anime.id)
-    await message.answer(
-        f"🎲 Tasodifiy anime:\n\n" + texts.ANIME_FOUND.format(title=anime.title, count=len(anime.episodes)),
-        reply_markup=user_kb.episodes_grid_kb(anime)
-    )
+    await send_anime_card(message, anime, caption_extra="\n🎲 <i>Tasodifiy tanlandi</i>")
 
 
 @router.message(Command("last"))
@@ -76,10 +96,7 @@ async def cmd_last(message: Message, state: FSMContext, bot: Bot):
     if not anime_list:
         await message.answer(texts.NO_TOP); return
     a = anime_list[0]
-    await message.answer(
-        f"🆕 Oxirgi yuklangan:\n\n" + texts.ANIME_FOUND.format(title=a.title, count=len(a.episodes)),
-        reply_markup=user_kb.episodes_grid_kb(a)
-    )
+    await send_anime_card(message, a, caption_extra="\n🆕 <i>Oxirgi yuklangan</i>")
 
 
 @router.message(Command("top"))
@@ -128,13 +145,13 @@ async def menu_search(message: Message, state: FSMContext, bot: Bot):
 
 @router.message(F.text == texts.CANCEL_BTN)
 async def cancel_handler(message: Message, state: FSMContext):
+    """Bu FOYDALANUVCHI oqimlaridan (qidiruv, murojaat) bekor qilish uchun.
+    Admin panel ichidagi bekor qilishlar handlers_admin.py da alohida boshqariladi,
+    shu sabab bu yerda har doim foydalanuvchi menyusiga qaytariladi — admin ham
+    'Foydalanuvchi rejimi'da shu oqimda bo'lsa, admin panelga emas, user menyusiga tushadi."""
     await state.clear()
     user = await db.get_user(message.from_user.id)
-    if message.from_user.id in config.ADMIN_IDS:
-        from handlers_admin import show_admin_panel
-        await show_admin_panel(message, state)
-    else:
-        await show_main_menu(message, user.gender if user else "")
+    await show_main_menu(message, user.gender if user else "")
 
 
 @router.message(UserStates.waiting_code)
@@ -154,7 +171,7 @@ async def process_code(message: Message, state: FSMContext):
         elif len(results) > 1:
             # Bir nechta natija - ro'yxat ko'rsat
             await state.clear()
-            kb_builder = __import__('aiogram').utils.keyboard.InlineKeyboardBuilder()
+            kb_builder = InlineKeyboardBuilder()
             for r in results:
                 kb_builder.button(text=f"🎬 {r.title}", callback_data=f"sel_anime:{r.id}")
             kb_builder.adjust(1)
@@ -176,12 +193,7 @@ async def process_code(message: Message, state: FSMContext):
     if user and user.last_anime_id == anime.id and 0 < user.last_episode_num <= len(anime.episodes):
         await message.answer(texts.CONTINUE_WATCHING.format(title=anime.title, ep=user.last_episode_num))
 
-    await message.answer(
-        f"🎬 <b>{anime.title}</b>\n"
-        f"📺 Jami: <b>{len(anime.episodes)} qism</b>  |  🔍 {anime.search_count}  |  👍 {anime.likes}\n\n"
-        f"Qaysi qismni ko'rmoqchisan? 👇",
-        reply_markup=user_kb.episodes_grid_kb(anime)
-    )
+    await send_anime_card(message, anime, caption_extra="\n\nQaysi qismni ko'rmoqchisan? 👇")
     await show_main_menu(message, user.gender if user else "")
 
 
@@ -192,12 +204,7 @@ async def select_anime(callback: CallbackQuery):
     if not anime:
         await callback.answer("Topilmadi", show_alert=True); return
     await db.increment_search_count(anime.id)
-    await callback.message.answer(
-        f"🎬 <b>{anime.title}</b>\n"
-        f"📺 Jami: <b>{len(anime.episodes)} qism</b>  |  👍 {anime.likes}\n\n"
-        f"Qaysi qismni ko'rmoqchisan? 👇",
-        reply_markup=user_kb.episodes_grid_kb(anime)
-    )
+    await send_anime_card(callback.message, anime, caption_extra="\n\nQaysi qismni ko'rmoqchisan? 👇")
     await callback.answer()
 
 
@@ -284,12 +291,9 @@ async def menu_history(message: Message, state: FSMContext):
     anime = await db.get_anime_by_id(user.last_anime_id)
     if not anime:
         await message.answer(texts.NO_HISTORY); return
-    await message.answer(
-        f"📜 <b>Mening tarixim</b>\n\n"
-        f"🎬 <b>{anime.title}</b>\n"
-        f"▶️ {user.last_episode_num}-qismda to'xtagansiz\n\n"
-        f"Davom etasizmi?",
-        reply_markup=user_kb.episodes_grid_kb(anime)
+    await send_anime_card(
+        message, anime,
+        caption_extra=f"\n\n📜 <b>Mening tarixim</b>: {user.last_episode_num}-qismda to'xtagansiz. Davom etasizmi?"
     )
 
 
@@ -312,7 +316,10 @@ async def process_feedback(message: Message, state: FSMContext, bot: Bot):
     await message.answer(texts.FEEDBACK_THANKS.format(addr=texts.address(user.gender if user else "")))
     await state.clear()
     await show_main_menu(message, user.gender if user else "")
-    for aid in config.ADMIN_IDS:
+    admins_to_notify = set(config.SUPER_ADMIN_IDS)
+    for a in await db.list_admins():
+        admins_to_notify.add(a.id)
+    for aid in admins_to_notify:
         try:
             await bot.send_message(aid, f"✉️ Yangi murojaat!\n👤 {message.from_user.full_name} ({message.from_user.id})\n\n{message.text}")
         except Exception: pass
@@ -323,9 +330,9 @@ async def process_feedback(message: Message, state: FSMContext, bot: Bot):
 async def menu_premium(message: Message, state: FSMContext, bot: Bot):
     await state.clear()
     admin_username = None
-    if config.ADMIN_IDS:
+    if config.SUPER_ADMIN_IDS:
         try:
-            chat = await bot.get_chat(config.ADMIN_IDS[0])
+            chat = await bot.get_chat(config.SUPER_ADMIN_IDS[0])
             admin_username = chat.username
         except Exception: pass
     user = await db.get_user(message.from_user.id)
@@ -338,10 +345,12 @@ async def premium_request(callback: CallbackQuery, bot: Bot):
     plan_map = {"1": "1 oy — 25 000 so'm", "3": "3 oy — 60 000 so'm", "6": "6 oy — 110 000 so'm"}
     plan = callback.data.split(":")[1]
     plan_text = plan_map.get(plan, plan)
-    user = await db.get_user(callback.from_user.id)
     await db.add_premium_request(callback.from_user.id, callback.from_user.full_name, plan_text)
     await callback.answer(texts.PREMIUM_REQUEST_SENT, show_alert=True)
-    for aid in config.ADMIN_IDS:
+    admins_to_notify = set(config.SUPER_ADMIN_IDS)
+    for a in await db.list_admins():
+        admins_to_notify.add(a.id)
+    for aid in admins_to_notify:
         try:
             await bot.send_message(
                 aid,
@@ -358,9 +367,10 @@ async def premium_request(callback: CallbackQuery, bot: Bot):
 async def menu_ads(message: Message, state: FSMContext, bot: Bot):
     await state.clear()
     admin_username = None
-    if config.ADMIN_IDS:
+    if config.SUPER_ADMIN_IDS:
         try:
-            chat = await bot.get_chat(config.ADMIN_IDS[0])
+            chat = await bot.get_chat(config.SUPER_ADMIN_IDS[0])
             admin_username = chat.username
         except Exception: pass
     await message.answer(texts.ADS_TEXT, reply_markup=user_kb.ads_contact_kb(admin_username))
+    
