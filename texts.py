@@ -113,6 +113,22 @@ ADMIN_MENU_BROADCAST= "📢 Xabar yuborish"
 ADMIN_MENU_FEEDBACK = "✉️ Murojaatlar"
 ADMIN_MENU_STATS    = "📊 Statistika"
 ADMIN_MENU_PREMIUM  = "💎 Premium so'rovlar"
+ADMIN_MENU_USER_MODE = "👤 Foydalanuvchi rejimi"
+ADMIN_MENU_ADMINS   = "🛡 Adminlar"
+
+NOT_SUPER_ADMIN = "⛔️ Bu buyruq faqat bosh adminlar (.env dagi) uchun."
+ASK_ADD_ADMIN_ID = "🆔 Yangi admin qilmoqchi bo'lgan foydalanuvchi ID sini yuboring:"
+ASK_REMOVE_ADMIN_ID = "🆔 Adminlikdan olib tashlamoqchi bo'lgan foydalanuvchi ID sini yuboring:"
+ADMIN_ADDED = "✅ {uid} endi admin!"
+ADMIN_ALREADY = "⚠️ {uid} allaqachon admin."
+ADMIN_REMOVED = "✅ {uid} adminlikdan olindi."
+ADMIN_NOT_FOUND_TO_REMOVE = "⚠️ {uid} bazadagi (dinamik) adminlar orasida topilmadi.\n(.env dagi bosh adminlarni bu yerdan o'chirib bo'lmaydi.)"
+
+ASK_DESCRIPTION = "📝 Anime uchun qisqacha tavsif yozing (yoki o'tkazib yuborish uchun ➡️ Skip bosing):"
+ASK_COVER = "🖼 Anime uchun muqova (rasm) yuboring (yoki o'tkazib yuborish uchun ➡️ Skip bosing):"
+SKIP_BTN = "➡️ Skip"
+DESCRIPTION_SAVED = "✅ Tavsif saqlandi."
+COVER_SAVED = "✅ Muqova saqlandi."
 
 ASK_NEW_TITLE     = "📝 Anime nomini yozing:"
 NEW_ANIME_CREATED = (
@@ -134,7 +150,7 @@ CHANNEL_ADDED     = "✅ Kanal qo'shildi!"
 
 ASK_BROADCAST_TEXT = "📢 Barcha foydalanuvchilarga yuboriladigan xabarni yozing:"
 BROADCAST_STARTED  = "🚀 Yuborish boshlandi..."
-BROADCAST_DONE     = "✅ Tugadi! {success} ta yetdi, {fail} ta xato."
+BROADCAST_DONE     = "✅ Tugadi! {success} ta yetdi, {fail} ta xato (shundan {blocked} tasi botni bloklagani uchun endi ro'yxatdan avtomatik chiqarildi)."
 
 STATS_TEXT = (
     "📊 <b>To'liq statistika</b>\n\n"
