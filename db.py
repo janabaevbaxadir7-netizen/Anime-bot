@@ -2,7 +2,7 @@ from datetime import datetime
 from sqlalchemy import select, func, update, delete, or_
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
 from sqlalchemy.orm import selectinload
-from models import Base, User, Anime, Episode, MandatoryChannel, Settings, Feedback, PremiumRequest
+from models import Base, User, Anime, Episode, MandatoryChannel, Settings, Feedback, PremiumRequest, Admin
 import config
 
 engine = create_async_engine(f"sqlite+aiosqlite:///{config.DB_PATH}")
@@ -65,6 +65,11 @@ async def all_user_ids():
         r = await s.execute(select(User.id).where(User.is_blocked==False))
         return [row[0] for row in r.all()]
 
+async def mark_user_blocked(uid):
+    async with async_session() as s:
+        await s.execute(update(User).where(User.id==uid).values(is_blocked=True))
+        await s.commit()
+
 
 # ── ANIME ──
 async def create_anime(code, title):
@@ -119,6 +124,11 @@ async def update_anime_title(anime_id, title):
 async def update_anime_cover(anime_id, file_id):
     async with async_session() as s:
         await s.execute(update(Anime).where(Anime.id==anime_id).values(cover_file_id=file_id))
+        await s.commit()
+
+async def update_anime_description(anime_id, description):
+    async with async_session() as s:
+        await s.execute(update(Anime).where(Anime.id==anime_id).values(description=description))
         await s.commit()
 
 async def add_episode(anime_id, file_id, caption=""):
@@ -231,4 +241,34 @@ async def add_premium_request(uid, user_name, plan):
         pr = PremiumRequest(user_id=uid, user_name=user_name, plan=plan)
         s.add(pr); await s.commit()
         return pr
-    
+
+
+# ── ADMINLAR (bazada, dinamik) ──
+async def add_admin(uid, full_name, added_by):
+    async with async_session() as s:
+        existing = await s.get(Admin, uid)
+        if existing:
+            return False
+        s.add(Admin(id=uid, full_name=full_name or "", added_by=added_by))
+        await s.commit()
+        return True
+
+async def remove_admin(uid):
+    async with async_session() as s:
+        existing = await s.get(Admin, uid)
+        if not existing:
+            return False
+        await s.execute(delete(Admin).where(Admin.id==uid))
+        await s.commit()
+        return True
+
+async def is_db_admin(uid):
+    async with async_session() as s:
+        return (await s.get(Admin, uid)) is not None
+
+async def list_admins():
+    async with async_session() as s:
+        r = await s.execute(select(Admin))
+        return list(r.scalars().all())
+
+                        
