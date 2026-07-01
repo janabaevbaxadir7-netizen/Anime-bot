@@ -99,3 +99,4 @@ def ads_contact_kb(admin_username=None):
     if admin_username:
         kb.button(text="💬 Admin bilan bog'lanish", url=f"https://t.me/{admin_username}")
     return kb.as_markup()
+    
