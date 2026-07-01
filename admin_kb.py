@@ -9,8 +9,14 @@ def admin_menu_kb():
         [KeyboardButton(text=texts.ADMIN_MENU_LIST), KeyboardButton(text=texts.ADMIN_MENU_CHANNELS)],
         [KeyboardButton(text=texts.ADMIN_MENU_BROADCAST), KeyboardButton(text=texts.ADMIN_MENU_FEEDBACK)],
         [KeyboardButton(text=texts.ADMIN_MENU_STATS), KeyboardButton(text=texts.ADMIN_MENU_PREMIUM)],
+        [KeyboardButton(text=texts.ADMIN_MENU_ADMINS), KeyboardButton(text=texts.ADMIN_MENU_USER_MODE)],
         [KeyboardButton(text=texts.BACK_BTN)],
     ]
+    return ReplyKeyboardMarkup(keyboard=kb, resize_keyboard=True)
+
+
+def skip_kb():
+    kb = [[KeyboardButton(text=texts.SKIP_BTN)], [KeyboardButton(text=texts.CANCEL_BTN)]]
     return ReplyKeyboardMarkup(keyboard=kb, resize_keyboard=True)
 
 
@@ -54,6 +60,8 @@ def anime_manage_kb(anime):
     kb = InlineKeyboardBuilder()
     kb.button(text="➕ Qism qo'shish", callback_data=f"aquick_ep:{anime.id}")
     kb.button(text="✏️ Nomni o'zgartirish", callback_data=f"arename:{anime.id}")
+    kb.button(text="📝 Tavsif qo'shish/o'zgartirish", callback_data=f"adesc:{anime.id}")
+    kb.button(text="🖼 Muqova qo'shish/o'zgartirish", callback_data=f"acover:{anime.id}")
     kb.button(text="🗑 O'chirish", callback_data=f"admin_del:{anime.id}")
     kb.button(text=texts.BACK_BTN, callback_data="admin_list_back:0")
     kb.adjust(1)
@@ -77,4 +85,16 @@ def confirm_delete_kb(anime_id):
     kb.button(text="❌ Bekor", callback_data=f"admin_view:{anime_id}")
     kb.adjust(2)
     return kb.as_markup()
+
+
+def admins_manage_kb(super_ids, db_admins):
+    kb = InlineKeyboardBuilder()
+    for uid in super_ids:
+        kb.button(text=f"👑 {uid} (bosh admin)", callback_data="noop")
+    for a in db_admins:
+        kb.button(text=f"🗑 {a.id} — {a.full_name or 'nomsiz'}", callback_data=f"rm_admin:{a.id}")
+    kb.button(text="➕ Admin qo'shish", callback_data="add_admin_start")
+    kb.adjust(1)
+    return kb.as_markup()
+
     
