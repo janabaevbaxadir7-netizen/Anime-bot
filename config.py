@@ -1,7 +1,9 @@
 import os
 
 # ==== ASOSIY SOZLAMALAR ====
-BOT_TOKEN = os.getenv(8902500884:AAHb8NryHR-3M3xoviXeN_YdNA61tRkz0Ik)
+# Railway'da "Variables" bo'limiga BOT_TOKEN nomi bilan tokenni qo'shsangiz,
+# quyidagi qator avtomatik o'sha tokenni oladi.
+BOT_TOKEN = os.getenv("BOT_TOKEN", "8902500884:AAHb8NryHR-3M3xoviXeN_YdNA61tRkzOIk")
 
 # Admin/dasturchi ID'lari (statistika, premium boshqaruvi shu ID'larga ochiq)
 ADMIN_IDS = [8094557015]  # Baxadir
