@@ -1,7 +1,7 @@
 import os
 
 # ==== ASOSIY SOZLAMALAR ====
-BOT_TOKEN = os.getenv("BOT_TOKEN", "SIZNING_BOT_TOKENINGIZ_BU_YERGA")
+BOT_TOKEN = os.getenv(8902500884:AAHb8NryHR-3M3xoviXeN_YdNA61tRkz0Ik)
 
 # Admin/dasturchi ID'lari (statistika, premium boshqaruvi shu ID'larga ochiq)
 ADMIN_IDS = [8094557015]  # Baxadir
