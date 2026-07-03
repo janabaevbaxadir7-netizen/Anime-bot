@@ -1,0 +1,35 @@
+from aiogram.fsm.state import State, StatesGroup
+
+
+class AdminStates(StatesGroup):
+    # Anime
+    waiting_new_title = State()
+    waiting_new_description = State()
+    waiting_episodes = State()
+    waiting_code_for_ep = State()
+    waiting_episodes_existing = State()
+    waiting_code_for_edit = State()
+    waiting_edit_title = State()
+    waiting_edit_description = State()
+    waiting_code_for_delete = State()
+
+    # Kanallar
+    waiting_channel_id = State()
+    waiting_channel_title = State()
+    waiting_channel_url = State()
+
+    # Xabarnoma
+    waiting_broadcast = State()
+
+    # Foydalanuvchi
+    waiting_user_query = State()
+    waiting_premium_days = State()
+
+    # Adminlar
+    waiting_add_admin_id = State()
+    waiting_remove_admin_id = State()
+
+    # Post tayyorlash
+    waiting_post_code = State()
+    waiting_post_photo = State()
+    waiting_post_caption = State()
