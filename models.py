@@ -30,6 +30,7 @@ class Anime(Base):
     description: Mapped[str] = mapped_column(Text, default="")
     is_premium: Mapped[bool] = mapped_column(Boolean, default=False)
     downloads: Mapped[int] = mapped_column(Integer, default=0)
+    cover_file_id: Mapped[str] = mapped_column(String(255), default="")
     created_at: Mapped[datetime.datetime] = mapped_column(DateTime, default=datetime.datetime.utcnow)
 
     episodes: Mapped[list["Episode"]] = relationship(back_populates="anime", cascade="all, delete-orphan")
@@ -87,3 +88,4 @@ class Feedback(Base):
     full_name: Mapped[str] = mapped_column(String(255), default="")
     text: Mapped[str] = mapped_column(Text, default="")
     created_at: Mapped[datetime.datetime] = mapped_column(DateTime, default=datetime.datetime.utcnow)
+    
