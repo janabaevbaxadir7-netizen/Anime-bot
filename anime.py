@@ -52,7 +52,8 @@ async def last_handler(message: Message):
 
 
 async def send_anime_card(message_or_call, anime):
-    """Anime kartochkasini (nomi, tavsifi, kod, yuklab olishlar, qism tugmalari) yuboradi."""
+    """Anime kartochkasini (nomi, tavsifi, kod, yuklab olishlar, qism tugmalari) yuboradi.
+    Agar muqova rasmi bo'lsa, rasm bilan birga; bo'lmasa oddiy matn sifatida yuboradi."""
     episodes = await get_episodes(anime.id)
     text = (
         f"🎬 <b>{anime.title}</b>\n\n"
@@ -64,7 +65,10 @@ async def send_anime_card(message_or_call, anime):
     kb = episode_kb(anime.code, len(episodes))
 
     target = message_or_call.message if isinstance(message_or_call, CallbackQuery) else message_or_call
-    await target.answer(text, reply_markup=kb, parse_mode="HTML")
+    if anime.cover_file_id:
+        await target.answer_photo(photo=anime.cover_file_id, caption=text, reply_markup=kb, parse_mode="HTML")
+    else:
+        await target.answer(text, reply_markup=kb, parse_mode="HTML")
 
 
 @router.callback_query(F.data.startswith("anime_"))
@@ -143,3 +147,4 @@ async def save_anime_cb(call: CallbackQuery):
         await call.answer("✅ Saqlangan animelarga qo'shildi!", show_alert=True)
     else:
         await call.answer("ℹ️ Bu anime allaqachon saqlangan.", show_alert=True)
+        
