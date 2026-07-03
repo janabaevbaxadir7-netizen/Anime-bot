@@ -186,6 +186,12 @@ async def update_anime_description(anime_id: int, description: str):
         await session.commit()
 
 
+async def update_anime_cover(anime_id: int, file_id: str):
+    async with async_session() as session:
+        await session.execute(update(Anime).where(Anime.id == anime_id).values(cover_file_id=file_id))
+        await session.commit()
+
+
 async def delete_anime(anime_id: int):
     async with async_session() as session:
         await session.execute(delete(Anime).where(Anime.id == anime_id))
@@ -369,3 +375,4 @@ async def get_saved_animes(tg_id: int) -> list[Anime]:
     async with async_session() as session:
         result = await session.execute(select(Anime).where(Anime.code.in_(codes)))
         return list(result.scalars().all())
+        
