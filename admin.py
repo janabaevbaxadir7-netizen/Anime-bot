@@ -143,8 +143,34 @@ async def am_new_title(message: Message, state: FSMContext):
     if message.text == CANCEL:
         await admin_cancel(message, state); return
     await state.update_data(title=message.text.strip())
-    await message.answer("📝 Tavsif yozing (yoki o'tkazib yuborish uchun Skip bosing):", reply_markup=admin_kb.skip_kb())
+    await message.answer(
+        "📝 Tavsif yozing. Xohlasangiz, muqova rasmini ham yuborishingiz mumkin "
+        "(rasmni tavsif bilan birga, rasm ostiga yozib yuboring). "
+        "O'tkazib yuborish uchun Skip bosing:",
+        reply_markup=admin_kb.skip_kb()
+    )
     await state.set_state(AdminStates.waiting_new_description)
+
+
+async def _create_anime_and_prompt_episodes(message: Message, state: FSMContext, title: str, description: str, cover_file_id: str = ""):
+    code = await crud.get_next_code()
+    anime = await crud.add_anime(code=code, title=title, description=description)
+    if cover_file_id:
+        await crud.update_anime_cover(anime.id, cover_file_id)
+    await state.update_data(anime_id=anime.id, part_number=1)
+    await message.answer(
+        f"✅ <b>{anime.title}</b> yaratildi! Kod: <code>{anime.code}</code>\n\n"
+        f"🎥 Endi 1-qism videosini yuboring (har video ketma-ket, tugagach '✅ Tugatish' yozing):",
+        reply_markup=admin_kb.cancel_kb()
+    )
+    await state.set_state(AdminStates.waiting_episodes)
+
+
+@router.message(AdminStates.waiting_new_description, F.photo)
+async def am_new_desc_photo(message: Message, state: FSMContext):
+    data = await state.get_data()
+    description = (message.caption or "").strip()
+    await _create_anime_and_prompt_episodes(message, state, data["title"], description, message.photo[-1].file_id)
 
 
 @router.message(AdminStates.waiting_new_description)
@@ -153,15 +179,7 @@ async def am_new_desc(message: Message, state: FSMContext):
         await admin_cancel(message, state); return
     description = "" if message.text == SKIP else message.text.strip()
     data = await state.get_data()
-    code = await crud.get_next_code()
-    anime = await crud.add_anime(code=code, title=data["title"], description=description)
-    await state.update_data(anime_id=anime.id, part_number=1)
-    await message.answer(
-        f"✅ <b>{anime.title}</b> yaratildi! Kod: <code>{anime.code}</code>\n\n"
-        f"🎥 Endi 1-qism videosini yuboring (har video ketma-ket, tugagach '✅ Tugatish' yozing):",
-        reply_markup=admin_kb.cancel_kb()
-    )
-    await state.set_state(AdminStates.waiting_episodes)
+    await _create_anime_and_prompt_episodes(message, state, data["title"], description)
 
 
 @router.message(AdminStates.waiting_episodes, F.video)
@@ -258,7 +276,8 @@ async def am_view(callback: CallbackQuery):
         f"🔢 Kod: <code>{anime.code}</code>\n"
         f"📺 Qismlar: {len(episodes)} ta\n"
         f"⬇️ Yuklab olishlar: {anime.downloads}\n"
-        f"📝 Tavsif: {anime.description or 'yo\u02bbq'}",
+        f"📝 Tavsif: {anime.description or 'yo\u02bbq'}\n"
+        f"🖼 Muqova: {'✅ bor' if anime.cover_file_id else '❌ yo\u02bbq'}",
         reply_markup=admin_kb.anime_edit_actions_kb(anime.id)
     )
     await callback.answer()
@@ -310,9 +329,24 @@ async def aedit_title_process(message: Message, state: FSMContext):
 async def aedit_desc_start(callback: CallbackQuery, state: FSMContext):
     anime_id = int(callback.data.split(":")[1])
     await state.update_data(edit_anime_id=anime_id)
-    await callback.message.answer("📝 Yangi tavsifni yuboring:", reply_markup=admin_kb.cancel_kb())
+    await callback.message.answer(
+        "📝 Yangi tavsifni yuboring. Muqova rasmini ham o'zgartirmoqchi bo'lsangiz, "
+        "rasmni tavsif bilan birga (rasm ostiga yozib) yuboring:",
+        reply_markup=admin_kb.cancel_kb()
+    )
     await state.set_state(AdminStates.waiting_edit_description)
     await callback.answer()
+
+
+@router.message(AdminStates.waiting_edit_description, F.photo)
+async def aedit_desc_photo(message: Message, state: FSMContext):
+    data = await state.get_data()
+    anime_id = data["edit_anime_id"]
+    await crud.update_anime_cover(anime_id, message.photo[-1].file_id)
+    if message.caption:
+        await crud.update_anime_description(anime_id, message.caption.strip())
+    await state.clear()
+    await message.answer("✅ Muqova va tavsif yangilandi!", reply_markup=admin_kb.admin_panel_kb())
 
 
 @router.message(AdminStates.waiting_edit_description)
@@ -433,230 +467,4 @@ async def user_lookup_process(message: Message, state: FSMContext):
     if not user:
         await message.answer("❌ Bunday foydalanuvchi topilmadi."); return
     prem = "✅ FAOL" if await crud.is_premium(user.tg_id) else "❌ Yo'q"
-    until = user.premium_until.strftime("%Y-%m-%d") if user.premium_until else "—"
-    await state.update_data(target_uid=user.tg_id)
-    await message.answer(
-        f"👤 <b>{user.full_name}</b> (@{user.username or 'yo\u02bbq'})\n"
-        f"🆔 <code>{user.tg_id}</code>\n"
-        f"💎 Premium: {prem} (muddat: {until})\n"
-        f"📅 Qo'shilgan: {user.joined_at.strftime('%Y-%m-%d')}\n\n"
-        f"Premium berish uchun necha kunlik bo'lishini raqam bilan yuboring (masalan: <code>30</code>):"
-    )
-    await state.set_state(AdminStates.waiting_premium_days)
-
-
-@router.message(AdminStates.waiting_premium_days)
-async def grant_premium_days(message: Message, state: FSMContext, bot: Bot):
-    if message.text == CANCEL:
-        await admin_cancel(message, state); return
-    if not message.text.strip().isdigit():
-        await message.answer("❌ Faqat raqam (kunlar soni) yuboring."); return
-    days = int(message.text.strip())
-    data = await state.get_data()
-    uid = data.get("target_uid")
-    await state.clear()
-    if not uid:
-        await message.answer("Xatolik, qaytadan urinib ko'ring.", reply_markup=admin_kb.admin_panel_kb()); return
-    await crud.set_premium_days(uid, days)
-    await message.answer(f"✅ {uid} ga {days} kunlik Premium berildi.", reply_markup=admin_kb.admin_panel_kb())
-    try:
-        await bot.send_message(uid, f"🎉 Sizga <b>{days} kunlik Premium</b> faollashtirildi! Enjoy 💎")
-    except Exception:
-        pass
-
-
-# ══════════════════════ 🛡 ADMINLAR ══════════════════════
-
-@router.message(F.text == "🛡 Adminlar", IsSuperAdmin())
-async def admins_menu(message: Message, state: FSMContext):
-    await state.clear()
-    db_admins = await crud.list_admins()
-    await message.answer(
-        "🛡 <b>Adminlar</b>\n\n👑 — bosh adminlar (o'zgartirilmaydi)\n⚙️ — botdan qo'shilgan adminlar (ustiga bosib huquqlarini sozlang)",
-        reply_markup=admin_kb.admins_list_kb(config.ADMIN_IDS, db_admins)
-    )
-
-
-@router.message(F.text == "🛡 Adminlar", IsAdmin())
-async def admins_menu_denied(message: Message):
-    await message.answer("⛔️ Bu bo'lim faqat bosh adminlar uchun.")
-
-
-@router.callback_query(F.data == "adm_add", IsSuperAdmin())
-async def adm_add_start(callback: CallbackQuery, state: FSMContext):
-    await callback.message.answer("🆔 Yangi admin qilmoqchi bo'lgan foydalanuvchi ID sini yuboring:", reply_markup=admin_kb.cancel_kb())
-    await state.set_state(AdminStates.waiting_add_admin_id)
-    await callback.answer()
-
-
-@router.message(AdminStates.waiting_add_admin_id, IsSuperAdmin())
-async def adm_add_process(message: Message, state: FSMContext, bot: Bot):
-    if message.text == CANCEL:
-        await admin_cancel(message, state); return
-    if not message.text.strip().isdigit():
-        await message.answer("❌ Faqat ID (raqam) yuboring."); return
-    uid = int(message.text.strip())
-    full_name = ""
-    try:
-        chat = await bot.get_chat(uid)
-        full_name = chat.full_name or ""
-    except Exception:
-        pass
-    added = await crud.add_admin(uid, full_name, message.from_user.id, permissions="")
-    await state.clear()
-    if added:
-        admin = await crud.get_admin(uid)
-        await message.answer(
-            f"✅ {uid} qo'shildi. Endi unga qaysi bo'limlarga ruxsat berishni tanlang:",
-            reply_markup=admin_kb.admin_permissions_kb(uid, admin.permissions)
-        )
-        try:
-            await bot.send_message(uid, "🎉 Sizga bot boshqaruvida admin huquqi berildi! /admin buyrug'ini yuboring.")
-        except Exception:
-            pass
-    else:
-        await message.answer("⚠️ Bu foydalanuvchi allaqachon admin.", reply_markup=admin_kb.admin_panel_kb())
-
-
-@router.callback_query(F.data.startswith("adm_view:"), IsSuperAdmin())
-async def adm_view(callback: CallbackQuery):
-    uid = int(callback.data.split(":")[1])
-    admin = await crud.get_admin(uid)
-    if not admin:
-        await callback.answer("Topilmadi", show_alert=True); return
-    await callback.message.edit_text(
-        f"⚙️ <b>{admin.full_name or uid}</b> — huquqlarni sozlang:",
-        reply_markup=admin_kb.admin_permissions_kb(uid, admin.permissions)
-    )
-    await callback.answer()
-
-
-@router.callback_query(F.data.startswith("adm_toggle:"), IsSuperAdmin())
-async def adm_toggle(callback: CallbackQuery):
-    _, uid, perm = callback.data.split(":")
-    uid = int(uid)
-    admin = await crud.get_admin(uid)
-    if not admin:
-        await callback.answer("Topilmadi", show_alert=True); return
-    current = set(p.strip() for p in admin.permissions.split(",") if p.strip())
-    if perm in current:
-        current.discard(perm)
-    else:
-        current.add(perm)
-    new_perms = ",".join(sorted(current))
-    await crud.set_admin_permissions(uid, new_perms)
-    await callback.message.edit_reply_markup(reply_markup=admin_kb.admin_permissions_kb(uid, new_perms))
-    await callback.answer("✅ Yangilandi")
-
-
-@router.callback_query(F.data.startswith("adm_remove:"), IsSuperAdmin())
-async def adm_remove(callback: CallbackQuery):
-    uid = int(callback.data.split(":")[1])
-    await crud.remove_admin(uid)
-    db_admins = await crud.list_admins()
-    await callback.message.edit_text(
-        "🛡 <b>Adminlar</b>",
-        reply_markup=admin_kb.admins_list_kb(config.ADMIN_IDS, db_admins)
-    )
-    await callback.answer("🗑 Adminlikdan olindi")
-
-
-@router.callback_query(F.data == "adm_back_list", IsSuperAdmin())
-async def adm_back_list(callback: CallbackQuery):
-    db_admins = await crud.list_admins()
-    await callback.message.edit_text(
-        "🛡 <b>Adminlar</b>",
-        reply_markup=admin_kb.admins_list_kb(config.ADMIN_IDS, db_admins)
-    )
-    await callback.answer()
-
-
-# ══════════════════════ 📊 STATISTIKA / 📁 MA'LUMOTLAR ══════════════════════
-
-@router.message(F.text == "📊 Statistika", IsAdmin())
-async def stats_quick(message: Message, state: FSMContext):
-    await state.clear()
-    s = await crud.get_stats()
-    await message.answer(
-        "📊 <b>Tezkor statistika</b>\n\n"
-        f"👥 Jami: {s['total_users']} ta | Bugun: +{s['today_users']}\n"
-        f"💎 Premium: {s['premium_count']} ta\n"
-        f"🎬 Animelar: {s['anime_count']} ta | Qismlar: {s['episode_count']} ta"
-    )
-
-
-@router.message(F.text == "📁 Ma'lumotlar", IsAdmin())
-async def full_data(message: Message, state: FSMContext):
-    await state.clear()
-    s = await crud.get_stats()
-    channels = await crud.get_all_channels()
-    db_admins = await crud.list_admins()
-    fb_count = await crud.count_feedback()
-    top = await crud.get_top_animes(5)
-    top_text = "\n".join([f"{i}. {a.title} — {a.downloads} yuklab olindi" for i, a in enumerate(top, 1)]) or "Hali yo'q"
-    await message.answer(
-        "📁 <b>To'liq ma'lumotlar</b>\n\n"
-        f"👥 Foydalanuvchilar: {s['total_users']} ta (bugun +{s['today_users']})\n"
-        f"💎 Premium: {s['premium_count']} ta\n"
-        f"🎬 Animelar: {s['anime_count']} ta | 📺 Qismlar: {s['episode_count']} ta\n"
-        f"⛩ Majburiy kanallar: {len(channels)} ta\n"
-        f"🛡 Qo'shimcha adminlar: {len(db_admins)} ta\n"
-        f"✉️ Murojaatlar: {fb_count} ta\n\n"
-        f"🏆 <b>Top 5 anime (yuklab olishlar bo'yicha):</b>\n{top_text}"
-    )
-
-
-# ══════════════════════ 📝 POST TAYYORLASH ══════════════════════
-
-@router.message(F.text == "📝 Post tayyorlash", IsAdmin())
-async def post_start(message: Message, state: FSMContext):
-    if not await has_permission(message.from_user.id, "posts"):
-        await deny(message, "Post tayyorlash"); return
-    await state.clear()
-    await message.answer("🔢 Post qaysi anime kodiga bog'lansin? Kodni yuboring:", reply_markup=admin_kb.cancel_kb())
-    await state.set_state(AdminStates.waiting_post_code)
-
-
-@router.message(AdminStates.waiting_post_code)
-async def post_code(message: Message, state: FSMContext):
-    if message.text == CANCEL:
-        await admin_cancel(message, state); return
-    if not message.text.strip().isdigit():
-        await message.answer("❌ Faqat raqam (kod) yuboring."); return
-    anime = await crud.get_anime_by_code(int(message.text.strip()))
-    if not anime:
-        await message.answer("❌ Bunday kod topilmadi."); return
-    await state.update_data(post_anime_id=anime.id, post_code=anime.code)
-    await message.answer(
-        f"🖼 <b>{anime.title}</b> tanlandi.\n\n"
-        f"Endi post uchun RASM yuboring, TAVSIFNI RASM OSTIGA (caption) yozing "
-        f"— masalan ovoz bergan kishi, janri, tili va h.k. Xohlagan formatda yozishingiz mumkin."
-    )
-    await state.set_state(AdminStates.waiting_post_photo)
-
-
-@router.message(AdminStates.waiting_post_photo, F.photo)
-async def post_photo(message: Message, state: FSMContext):
-    data = await state.get_data()
-    code = data.get("post_code")
-    caption = message.caption or ""
-    from aiogram.utils.keyboard import InlineKeyboardBuilder
-    kb = InlineKeyboardBuilder()
-    kb.button(text="🎬 Tomosha qilish", callback_data=f"anime_{code}")
-    await state.clear()
-    await message.answer_photo(
-        photo=message.photo[-1].file_id,
-        caption=caption + f"\n\n👁 Anime kodi: {code}",
-        reply_markup=kb.as_markup()
-    )
-    await message.answer(
-        "✅ Post tayyor — yuqoridagi xabarni o'zingizning kanalingizga forward qiling.",
-        reply_markup=admin_kb.admin_panel_kb()
-    )
-
-
-@router.message(AdminStates.waiting_post_photo)
-async def post_photo_wrong(message: Message, state: FSMContext):
-    if message.text == CANCEL:
-        await admin_cancel(message, state); return
-    await message.answer("🖼 Iltimos, rasm yuboring (caption bilan birga).")
+    until = user.premium_until.strftime("%Y-%m-%d") if user.
