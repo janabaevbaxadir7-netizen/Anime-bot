@@ -2,7 +2,7 @@ from aiogram import Router, F, Bot
 from aiogram.filters import CommandStart
 from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
 
-from crud import add_user, get_anime_by_code, get_saved_animes
+from crud import add_user, get_anime_by_code, get_saved_animes, is_premium
 from main_menu import main_menu_kb
 from anime import send_anime_card
 from subscription import check_subscription
@@ -38,8 +38,8 @@ async def start_handler(message: Message, bot: Bot):
         username=message.from_user.username or "",
     )
 
-    # Adminlar uchun majburiy obuna talab qilinmaydi
-    if not await is_admin_async(message.from_user.id):
+    # Adminlar va Premium foydalanuvchilar uchun majburiy obuna talab qilinmaydi
+    if not await is_admin_async(message.from_user.id) and not await is_premium(message.from_user.id):
         ok, channels = await check_subscription(bot, message.from_user.id)
         if not ok:
             await message.answer(
@@ -54,7 +54,7 @@ async def start_handler(message: Message, bot: Bot):
 
 @router.callback_query(F.data == "check_sub")
 async def check_sub_cb(callback: CallbackQuery, bot: Bot):
-    ok, channels = await check_subscription(bot, callback.from_user.id)
+    ok, channels = (True, []) if await is_premium(callback.from_user.id) else await check_subscription(bot, callback.from_user.id)
     if not ok:
         await callback.answer("❌ Hali barcha kanallarga obuna bo'lmadingiz.", show_alert=True)
         return
@@ -67,7 +67,15 @@ async def check_sub_cb(callback: CallbackQuery, bot: Bot):
 @router.callback_query(F.data == "main_menu")
 async def main_menu_callback(call: CallbackQuery):
     text = WELCOME_TEXT.format(name=call.from_user.full_name)
-    await call.message.edit_text(text, reply_markup=await main_menu_kb(), parse_mode="HTML")
+    kb = await main_menu_kb()
+    # Anime kartochkasi RASM bilan bo'lishi mumkin — bunday xabarni edit_text bilan
+    # o'zgartirib bo'lmaydi (Telegram xato beradi). Shu sabab avval o'chirib,
+    # keyin yangi matnli xabar yuboramiz — bu holatlarning barchasida ishlaydi.
+    try:
+        await call.message.delete()
+    except Exception:
+        pass
+    await call.message.answer(text, reply_markup=kb, parse_mode="HTML")
     await call.answer()
 
 
