@@ -40,18 +40,7 @@ class AdminStates(StatesGroup):
     # Anime premium sozlash
     waiting_premium_anime_days = State()
 
-    # Pul ishlash — Zayavka kanallari (admin)
-    waiting_earn_channel_id = State()
-    waiting_earn_channel_title = State()
-    waiting_earn_channel_url = State()
-    waiting_earn_channel_reward = State()
-
-
-class EarnStates(StatesGroup):
-    # Pul ishlash — foydalanuvchi tomoni
-    waiting_withdraw_amount = State()
-    waiting_withdraw_card = State()
-
 
 class SupportStates(StatesGroup):
     waiting_feedback_text = State()
+    
