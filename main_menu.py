@@ -11,7 +11,6 @@ async def main_menu_kb() -> InlineKeyboardMarkup:
     if channels and channels[0].url:
         rows.append([InlineKeyboardButton(text="📺 Ko'proq Animelar", url=channels[0].url)])
     rows.append([InlineKeyboardButton(text="⬇️ Saqlangan Animelar", callback_data="saved_animes")])
-    rows.append([InlineKeyboardButton(text="💰 Pul ishlash", callback_data="earn_menu")])
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
